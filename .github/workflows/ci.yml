@@ -1,59 +1,30 @@
-name: Unit Tests
+name: CI
 
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+on: [ pull_request ]
 
 jobs:
-  provide_php_versions_json:
-    runs-on: ubuntu-latest
-
-    steps:
-      # git clone + use PHP + composer install
-      -   uses: actions/checkout@v2
-      -   uses: shivammathur/setup-php@v2
-          with:
-            php-version: 8.0
-
-      -   run: composer install --no-progress --ansi
-
-      -   run: vendor/bin/easy-ci php-versions-json
-
-      - id: output_data
-        run: echo "::set-output name=matrix::$(vendor/bin/easy-ci php-versions-json)"
-
-    outputs:
-      matrix: ${{ steps.output_data.outputs.matrix }}
-
-  unit_tests:
-    needs: provide_php_versions_json
-
+  build:
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
-        php: ${{ fromJson(needs.provide_php_versions_json.outputs.matrix) }}
+        php: [8.2, 8.3, 8.4]
 
     name: PHP ${{ matrix.php }} tests
 
     steps:
-      -   uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      -   uses: shivammathur/setup-php@v2
-          with:
-            php-version: ${{ matrix.php }}
-            coverage: none
-
-      # composer install cache - https://github.com/ramsey/composer-install
-
-      - if: "matrix.php >= 8"
-        uses: "ramsey/composer-install@v1"
+      - uses: shivammathur/setup-php@v2
         with:
-          composer-options: "--ignore-platform-req php"
+          php-version: ${{ matrix.php }}
+          coverage: none # disable xdebug, pcov
+          tools: cs2pr
 
+      - name: Install dependencies
+        run: |
+          composer update --prefer-dist --no-interaction --no-suggest
 
       - name: Run phplint - Syntax check
         run: ./vendor/bin/phplint -c  ci/phplint.yml src
